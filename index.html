@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BlocksCreate 1.20 Worldcomming</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="startScreen">
+        <h1>1.20 Worldcomming</h1>
+        <h2>Normal</h2>
+        <button onclick="startGame('normal', 'forest')">Forest</button>
+        <button onclick="startGame('normal', 'desert')">Desert</button>
+        <button onclick="startGame('normal', 'tundra')">Tundra</button>
+        <button onclick="start ಗೇಮ್('normal', 'random')">Surprise Me</button>
+        <h2>Hardcore</h2>
+        <button onclick="startGame('hardcore', 'forest')">Forest</button>
+        <button onclick="startGame('hardcore', 'desert')">Desert</button>
+        <button onclick="startGame('hardcore', 'tundra')">Tundra</button>
+        <button onclick="startGame('hardcore', 'random')">Surprise Me</button>
+        <h2>Worlds</h2>
+        <div id="savedGames"></div>
+    </div>
+    <canvas id="gameCanvas" width="800" height="600" style="display: none;"></canvas>
+    <div id="inventory" style="display: none;"></div>
+    <div id="toolStatus" style="display: none;"></div>
+    <div id="message" style="display: none;"></div>
+    <div id="craftingMenu" style="display: none;"></div>
+    <div id="gameOverScreen" style="display: none;">
+        <h1>Game Over</h1>
+        <button id="restartButton">Restart</button>
+    </div>
+    <button id="exitButton" style="display: none;">Exit to Menu</button>
+    <script src="game.js"></script>
+</body>
+</html>
