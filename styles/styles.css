@@ -1,0 +1,217 @@
+/* Reset default styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Body styling */
+body {
+    font-family: 'Courier New', Courier, monospace;
+    background-color: #333;
+    color: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+}
+
+/* Start Screen */
+#startScreen {
+    text-align: center;
+    background-color: rgba(0, 0, 0, 0.8);
+    padding: 40px;
+    border: 4px solid #555;
+    border-radius: 10px;
+}
+
+#startScreen h1 {
+    font-size: 36px;
+    margin-bottom: 20px;
+    text-shadow: 2px 2px #000;
+}
+
+#startScreen h2 {
+    font-size: 24px;
+    margin: 20px 0 10px;
+    text-shadow: 1px 1px #000;
+}
+
+#startScreen button {
+    font-size: 18px;
+    padding: 8px 16px;
+    margin: 5px;
+    background-color: #777;
+    border: 2px solid #555;
+    color: #fff;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+#startScreen button:hover {
+    background-color: #999;
+}
+
+/* Game Canvas */
+#gameCanvas {
+    border: 4px solid #555;
+    background-color: #000;
+}
+
+/* Inventory Display */
+#inventory {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 10px;
+    border: 2px solid #555;
+    font-size: 14px;
+    max-width: 400px;
+    text-shadow: 1px 1px #000;
+}
+
+#inventory span {
+    margin: 0 5px;
+    cursor: pointer;
+}
+
+#inventory span:hover {
+    color: #ff0;
+}
+
+#inventory .selected {
+    color: #0f0;
+    font-weight: bold;
+}
+
+/* Tool Status */
+#toolStatus {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 5px 10px;
+    border: 2px solid #555;
+    font-size: 16px;
+    text-shadow: 1px 1px #000;
+}
+
+/* Message Display */
+#message {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    padding: 10px 20px;
+    border: 2px solid #555;
+    font-size: 18px;
+    text-shadow: 1px 1px #000;
+    pointer-events: none;
+}
+
+/* Crafting Menu */
+#craftingMenu {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.9);
+    padding: 20px;
+    border: 4px solid #555;
+    max-width: 500px;
+    text-align: center;
+}
+
+#craftingMenu h2, #craftingMenu h3 {
+    margin-bottom: 10px;
+    text-shadow: 2px 2px #000;
+}
+
+#craftingMenu .recipe {
+    padding: 5px;
+    margin: 5px 0;
+    background-color: #444;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+#craftingMenu .recipe:hover {
+    background-color: #666;
+}
+
+#craftingMenu .canCraft {
+    background-color: #2a2;
+}
+
+#craftingMenu .canCraft:hover {
+    background-color: #4c4;
+}
+
+#craftingMenu button {
+    margin-top: 10px;
+    padding: 5px 10px;
+    background-color: #777;
+    border: 2px solid #555;
+    color: #fff;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+#craftingMenu button:hover {
+    background-color: #999;
+}
+
+/* Game Over Screen */
+#gameOverScreen {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    padding: 40px;
+    border: 4px solid #555;
+    text-align: center;
+    display: none;
+    flex-direction: column;
+    gap: 20px;
+}
+
+#gameOverScreen h1 {
+    font-size: 36px;
+    text-shadow: 2px 2px #000;
+}
+
+#gameOverScreen button {
+    font-size: 20px;
+    padding: 10px 20px;
+    background-color: #777;
+    border: 2px solid #555;
+    color: #fff;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+#gameOverScreen button:hover {
+    background-color: #999;
+}
+
+/* Exit Button */
+#exitButton {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: #777;
+    border: 2px solid #555;
+    color: #fff;
+    padding: 5px 10px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+#exitButton:hover {
+    background-color: #999;
+}
