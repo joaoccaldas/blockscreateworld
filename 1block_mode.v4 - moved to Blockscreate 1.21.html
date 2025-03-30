@@ -1,0 +1,1397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D Minecraft One Block - Core Fixed v2 (Corrected Rendering)</title>
+    <style>
+        /* CSS Styles (identical to previous version) */
+        body { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #333; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: white; overflow: hidden; }
+        canvas#gameCanvas { border: 2px solid #555; background-color: #70c5ce; box-shadow: 0 0 10px rgba(0, 0, 0, 0.5); }
+        #uiContainer { display: flex; gap: 15px; margin-top: 10px; align-items: center; }
+        button { padding: 8px 15px; background-color: #5cb85c; color: white; border: 1px solid #4cae4c; border-radius: 4px; cursor: pointer; transition: background-color 0.2s ease, border-color 0.2s ease; font-size: 14px; user-select: none; }
+        button:hover { background-color: #4cae4c; border-color: #398439; }
+        button:disabled { background-color: #777; border-color: #666; cursor: not-allowed; }
+        #hotbar { display: flex; border: 2px solid #888; background-color: rgba(0, 0, 0, 0.4); padding: 3px; border-radius: 3px; }
+        .hotbar-slot { width: 40px; height: 40px; border: 2px solid #555; margin: 1px; position: relative; background-color: rgba(80, 80, 80, 0.7); display: flex; align-items: center; justify-content: center; user-select: none; cursor: pointer; }
+        .hotbar-slot.active { border-color: #FFD700; box-shadow: 0 0 5px #FFD700; }
+        .hotbar-slot canvas { width: 32px; height: 32px; image-rendering: pixelated; pointer-events: none; }
+        .hotbar-slot .item-count { position: absolute; bottom: 1px; right: 2px; color: white; font-size: 11px; font-weight: bold; text-shadow: 1px 1px 1px black; pointer-events: none; }
+        .hotbar-slot .item-durability { position: absolute; bottom: 1px; left: 1px; width: calc(100% - 2px); height: 3px; background-color: #555; border-radius: 1px; overflow: hidden; pointer-events: none; }
+        .hotbar-slot .item-durability-bar { height: 100%; background-color: green; width: 100%; transition: width 0.1s linear, background-color 0.2s linear; }
+        #inventoryMenu, #craftingMenu { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: rgba(50, 50, 50, 0.95); padding: 20px; border: 3px solid #FFD700; display: none; color: white; box-shadow: 0 0 15px rgba(0, 0, 0, 0.6); border-radius: 8px; width: 500px; max-height: 85vh; overflow-y: auto; z-index: 10; }
+        #inventoryMenu::-webkit-scrollbar, #craftingMenu::-webkit-scrollbar { width: 8px; }
+        #inventoryMenu::-webkit-scrollbar-track, #craftingMenu::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
+        #inventoryMenu::-webkit-scrollbar-thumb, #craftingMenu::-webkit-scrollbar-thumb { background: #FFD700; border-radius: 4px; }
+        #inventoryMenu::-webkit-scrollbar-thumb:hover, #craftingMenu::-webkit-scrollbar-thumb:hover { background: #b39700; }
+        #inventoryMenu h2, #craftingMenu h2 { margin: 0 0 15px 0; text-align: center; color: #FFD700; text-shadow: 1px 1px 2px black; }
+        .category { margin-bottom: 15px; background-color: rgba(255, 255, 255, 0.1); padding: 10px; border-radius: 5px; }
+        .category h3 { margin: 0 0 10px 0; color: #00CED1; border-bottom: 1px solid #FFD700; padding-bottom: 5px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
+        .category h3::after { content: '▼'; font-size: 12px; color: #FFD700; margin-left: 10px; }
+        .category.collapsed h3::after { content: '▶'; }
+        .category-content { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 10px; }
+        .category.collapsed .category-content { display: none; }
+        .inventory-slot, .recipe-slot { display: flex; flex-direction: column; align-items: center; padding: 8px; border-radius: 4px; background-color: rgba(0, 0, 0, 0.3); border: 1px solid #444; text-align: center; position: relative; }
+        .slot-info { display: flex; align-items: center; margin-bottom: 5px; width: 100%; }
+        .slot-info canvas { margin-right: 8px; border: 1px solid #555; flex-shrink: 0; image-rendering: pixelated; background-color: rgba(100,100,100,0.5); }
+        .slot-info span { flex-grow: 1; word-break: break-word; font-size: 13px; text-align: left; }
+        .inventory-slot button, .recipe-slot button { width: 80%; margin-top: 5px; padding: 4px 8px; font-size: 12px; }
+        .inventory-slot button:hover, .recipe-slot button:hover:not(:disabled) { background-color: #45a049; }
+        .inventory-slot button.selected-in-hotbar { background-color: #f0ad4e; border-color: #eea236; color: white; }
+        .recipe-slot button.craftable { background-color: #5bc0de; border-color: #46b8da; color: white; }
+        .recipe-slot button.craftable:hover { background-color: #31b0d5; border-color: #269abc; }
+        .recipe-slot button:disabled { background-color: #777; border-color: #666; color: #bbb; cursor: not-allowed; }
+        .common { border-left: 4px solid rgba(150, 150, 150, 0.8); } .uncommon { border-left: 4px solid rgba(60, 180, 255, 0.8); } .rare { border-left: 4px solid rgba(200, 80, 255, 0.8); } .epic { border-left: 4px solid rgba(255, 165, 0, 0.9); }
+        .recipe-slot .tooltip { visibility: hidden; width: 150px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 5px; position: absolute; z-index: 11; bottom: 110%; left: 50%; margin-left: -75px; opacity: 0; transition: opacity 0.3s; font-size: 11px; pointer-events: none; }
+        .recipe-slot .tooltip::after { content: ""; position: absolute; top: 100%; left: 50%; margin-left: -5px; border-width: 5px; border-style: solid; border-color: #555 transparent transparent transparent; }
+        .recipe-slot button:hover .tooltip { visibility: visible; opacity: 1; }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="uiContainer">
+        <div id="hotbar"></div>
+        <button id="inventoryButton">Inventory (I)</button>
+        <button id="craftingButton">Crafting (C)</button>
+        <button id="restartButton">Restart Game</button>
+        <button id="saveButton">Save Game</button>
+    </div>
+    <div id="inventoryMenu">
+        <h2>Inventory</h2>
+        <div id="inventorySlots"></div>
+    </div>
+    <div id="craftingMenu">
+        <h2>Crafting</h2>
+        <div id="craftingSlots"></div>
+    </div>
+    <script>
+        // --- Canvas and Context ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+
+        // --- Game Constants ---
+        const BLOCK_SIZE = 20;
+        const WORLD_WIDTH = canvas.width / BLOCK_SIZE; // 40
+        const WORLD_HEIGHT = canvas.height / BLOCK_SIZE; // 30
+        const GRAVITY = 0.45; // Adjusted slightly
+        const JUMP_STRENGTH = -9.5; // Adjusted slightly
+        const MOVE_SPEED = 4.0; // Player speed in BLOCKS per second (easier to reason about)
+        const PLAYER_WIDTH_BLOCKS = 0.8;
+        const PLAYER_HEIGHT_BLOCKS = 1.8;
+        const CENTRAL_X = Math.floor(WORLD_WIDTH / 2);
+        const CENTRAL_Y = Math.floor(WORLD_HEIGHT * 0.83);
+        const DAY_DURATION = 180000; const NIGHT_DURATION = 180000;
+        const REACH_DISTANCE = 3.5;
+        const HOTBAR_SLOTS = 9;
+        const AUTOSAVE_INTERVAL = 30000;
+
+        // --- Utility Functions --- (Moved near top as they are used by BLOCKS def)
+        function lerpColor(c1, c2, factor) { factor = Math.max(0, Math.min(1, factor)); const r = Math.round(c1[0] + (c2[0] - c1[0]) * factor); const g = Math.round(c1[1] + (c2[1] - c1[1]) * factor); const b = Math.round(c1[2] + (c2[2] - c1[2]) * factor); return `rgb(${r},${g},${b})`; }
+        function lightenColor(hex, percent) { hex = hex.replace(/^#/, ''); if(hex.length == 3) hex = hex.replace(/(.)/g, '$1$1'); const r = parseInt(hex.substr(0, 2), 16), g = parseInt(hex.substr(2, 2), 16), b = parseInt(hex.substr(4, 2), 16); return '#' + ((0|(1<<8) + r + (256 - r) * percent / 100).toString(16)).substr(1) + ((0|(1<<8) + g + (256 - g) * percent / 100).toString(16)).substr(1) + ((0|(1<<8) + b + (256 - b) * percent / 100).toString(16)).substr(1); }
+        function darkenColor(hex, percent) { hex = hex.replace(/^#/, ''); if(hex.length == 3) hex = hex.replace(/(.)/g, '$1$1'); const r = parseInt(hex.substr(0, 2), 16), g = parseInt(hex.substr(2, 2), 16), b = parseInt(hex.substr(4, 2), 16); return '#' + ((0|(1<<8) + r * (100 - percent) / 100).toString(16)).substr(1) + ((0|(1<<8) + g * (100 - percent) / 100).toString(16)).substr(1) + ((0|(1<<8) + b * (100 - percent) / 100).toString(16)).substr(1); }
+
+
+        // --- Data Definitions (BLOCKS, ITEMS, STAGES, RECIPES) ---
+        const BLOCKS = { air: { color: 'transparent', hardness: 0, tool: 'any', drops: null, placeable: false, name: 'Air' }, dirt: { name: 'Dirt', color: '#8B4513', detail1: '#5C4033', detail2: '#A0522D', hardness: 1, tool: 'any', drops: 'dirt', placeable: true, rarity: 'common' }, grass: { name: 'Grass Block', color: '#8B4513', top: '#00A000', detail1: '#ADFF2F', detail2: '#008000', hardness: 1, tool: 'any', drops: 'dirt', placeable: true, rarity: 'common' }, oak_log: { name: 'Oak Log', color: '#A0522D', detail1: '#8B4513', detail2: '#654321', texture: 'wood', hardness: 2, tool: 'axe', drops: 'oak_log', placeable: true, rarity: 'common' }, stone: { name: 'Stone', color: '#808080', detail1: '#A9A9A9', detail2: '#696969', hardness: 3, tool: 'pickaxe', drops: 'cobblestone', placeable: true, rarity: 'common' }, cobblestone: { name: 'Cobblestone', color: '#888888', detail1: '#A0A0A0', detail2: '#707070', hardness: 3, tool: 'pickaxe', drops: 'cobblestone', placeable: true, rarity: 'common' }, sand: { name: 'Sand', color: '#F4A460', detail1: '#FFD700', detail2: '#DAA520', hardness: 1, tool: 'shovel', drops: 'sand', placeable: true, rarity: 'common' }, coal_ore: { name: 'Coal Ore', color: '#707070', detail1: '#363636', detail2: '#5A5A5A', texture: 'ore', hardness: 3, tool: 'pickaxe', drops: 'coal', placeable: true, rarity: 'uncommon' }, iron_ore: { name: 'Iron Ore', color: '#B0B0B0', detail1: '#D2B48C', detail2: '#A0522D', texture: 'ore', hardness: 4, tool: 'pickaxe', tier: 1, drops: 'iron_ore', placeable: true, rarity: 'uncommon' }, gold_ore: { name: 'Gold Ore', color: '#B0B0B0', detail1: '#FFD700', detail2: '#DAA520', texture: 'ore', hardness: 4, tool: 'pickaxe', tier: 2, drops: 'gold_ore', placeable: true, rarity: 'rare' }, diamond_ore: { name: 'Diamond Ore', color: '#A0A0FF', detail1: '#00CED1', detail2: '#ADD8E6', texture: 'ore', hardness: 5, tool: 'pickaxe', tier: 2, drops: 'diamond', placeable: true, rarity: 'rare' }, oak_plank_block: { name: 'Oak Planks Block', color: '#CD853F', detail1: darkenColor('#CD853F', 20), detail2: lightenColor('#CD853F', 10), texture: 'plank', hardness: 2, tool: 'axe', drops: 'oak_plank', placeable: true, rarity: 'common' }, crafting_table: { name: 'Crafting Table Block', color: '#A0522D', top: '#CD853F', detail1: '#8B4513', detail2: '#654321', texture: 'crafting_table', hardness: 2, tool: 'axe', drops: 'crafting_table', placeable: true, rarity: 'uncommon' }, furnace: { name: 'Furnace Block', color: '#777777', top: '#555555', detail1: '#999999', detail2: '#444444', texture: 'furnace', hardness: 3, tool: 'pickaxe', drops: 'furnace', placeable: true, rarity: 'uncommon' }, };
+        const ITEMS = { dirt: { name: 'Dirt', type: 'block', stack: 64, blockId: 'dirt' }, oak_log: { name: 'Oak Log', type: 'block', stack: 64, blockId: 'oak_log' }, cobblestone: { name: 'Cobblestone', type: 'block', stack: 64, blockId: 'cobblestone' }, sand: { name: 'Sand', type: 'block', stack: 64, blockId: 'sand' }, coal_ore: { name: 'Coal Ore', type: 'block', stack: 64, blockId: 'coal_ore' }, iron_ore: { name: 'Iron Ore', type: 'block', stack: 64, blockId: 'iron_ore' }, gold_ore: { name: 'Gold Ore', type: 'block', stack: 64, blockId: 'gold_ore' }, diamond: { name: 'Diamond', type: 'material', stack: 64 }, oak_plank: { name: 'Oak Plank', type: 'block', stack: 64, blockId: 'oak_plank_block' }, stick: { name: 'Stick', type: 'material', stack: 64 }, coal: { name: 'Coal', type: 'material', stack: 64 }, iron_ingot: { name: 'Iron Ingot', type: 'material', stack: 64 }, gold_ingot: { name: 'Gold Ingot', type: 'material', stack: 64 }, wooden_pickaxe: { name: 'Wooden Pickaxe', type: 'tool', tool: 'pickaxe', tier: 0, durability: 60, maxDurability: 60, stack: 1 }, stone_pickaxe: { name: 'Stone Pickaxe', type: 'tool', tool: 'pickaxe', tier: 1, durability: 132, maxDurability: 132, stack: 1 }, crafting_table: { name: 'Crafting Table', type: 'block', stack: 64, blockId: 'crafting_table' }, furnace: { name: 'Furnace', type: 'block', stack: 64, blockId: 'furnace' }, };
+        const BLOCK_GENERATION_STAGES = [ { breaksNeeded: 0,   label: "Beginning", possible: { dirt: 0.6, oak_log: 0.4 } }, { breaksNeeded: 10,  label: "Stone Age", possible: { dirt: 0.2, oak_log: 0.3, stone: 0.4, coal_ore: 0.1 } }, { breaksNeeded: 50,  label: "Mining",    possible: { stone: 0.4, coal_ore: 0.2, iron_ore: 0.3, sand: 0.1 } }, { breaksNeeded: 120, label: "Prospecting", possible: { stone: 0.3, iron_ore: 0.3, coal_ore: 0.1, gold_ore: 0.15, diamond_ore: 0.05, sand: 0.1 } }, ];
+        const RECIPES = { 'Basics': [ { result: 'oak_plank', amount: 4, requires: { oak_log: 1 }, shape: null }, { result: 'stick', amount: 4, requires: { oak_plank: 2 }, shape: ['P','P'] }, ], 'Tools': [ { result: 'wooden_pickaxe', amount: 1, requires: { oak_plank: 3, stick: 2 }, shape: ['PPP', ' S ', ' S ']}, { result: 'stone_pickaxe', amount: 1, requires: { cobblestone: 3, stick: 2 }, shape: ['CCC', ' S ', ' S '] }, ], 'Blocks': [ { result: 'crafting_table', amount: 1, requires: { oak_plank: 4 }, shape: ['PP','PP']}, { result: 'furnace', amount: 1, requires: { cobblestone: 8 }, shape: ['CCC','C C','CCC']}, ], };
+
+        // --- Game State Variables ---
+        let world; let player; let inventory; let hotbar; let activeHotbarSlot;
+        let startTime; let isNight; let dayCount; let blockBreaks; let lastCentralBlockType;
+        let currentStageLabel = ""; let stars = []; let clouds = [];
+        let inventoryOpen = false; let craftingOpen = false;
+        let keys = {}; let lastTimestamp = 0; let autoSaveTimer = 0; let gameLoaded = false;
+
+        // --- UI Element References ---
+        const inventoryMenu = document.getElementById('inventoryMenu'); const craftingMenu = document.getElementById('craftingMenu');
+        const inventorySlots = document.getElementById('inventorySlots'); const craftingSlots = document.getElementById('craftingSlots');
+        const restartButton = document.getElementById('restartButton'); const saveButton = document.getElementById('saveButton');
+        const inventoryButton = document.getElementById('inventoryButton'); const craftingButton = document.getElementById('craftingButton');
+        const hotbarDiv = document.getElementById('hotbar');
+
+        // --- Initialization and Game Loop ---
+
+        function initializeGame() {
+            if (loadGame()) {
+                console.log("Game loaded successfully.");
+                gameLoaded = true;
+            } else {
+                console.log("No save game found or loading failed, starting new game.");
+                resetGame();
+            }
+            createHotbarSlots();
+            updateHotbarDisplay(); // Ensure hotbar is updated after load/reset
+            updateCurrentStage(); // Ensure stage label is correct after load/reset
+            initializeSky(); // Ensure sky elements are initialized
+            requestAnimationFrame(gameLoop);
+        }
+
+        function resetGame() { // Ensure player position is correct
+            console.log("Resetting game state...");
+            world = Array.from({ length: WORLD_HEIGHT }, () => Array(WORLD_WIDTH).fill('air'));
+            lastCentralBlockType = getStartingBlockType();
+            world[CENTRAL_Y][CENTRAL_X] = lastCentralBlockType;
+
+            player = { // Ensure pixel coordinates are correct on reset
+                x: (CENTRAL_X + 0.5) * BLOCK_SIZE, // Center pixel X
+                y: (CENTRAL_Y - PLAYER_HEIGHT_BLOCKS) * BLOCK_SIZE, // Top edge pixel Y
+                vx: 0, vy: 0, onGround: false
+            };
+
+            inventory = {};
+            hotbar = Array(HOTBAR_SLOTS).fill(null);
+            activeHotbarSlot = 0;
+            startTime = Date.now();
+            isNight = false;
+            dayCount = 0;
+            blockBreaks = 0;
+            updateCurrentStage(); // Call after blockBreaks is reset
+            initializeSky(); // Call after state is reset
+            inventoryOpen = false;
+            craftingOpen = false;
+            inventoryMenu.style.display = 'none';
+            craftingMenu.style.display = 'none';
+
+            if (!gameLoaded) {
+                clearSaveGame();
+                console.log("Previous save data cleared.");
+            }
+            gameLoaded = false; // Mark as not loaded after reset
+
+            // updateHotbarDisplay(); // Moved to initializeGame to avoid race conditions
+            console.log("Game reset complete.");
+        }
+
+        function getStartingBlockType() { const firstStage = BLOCK_GENERATION_STAGES[0].possible; const types = Object.keys(firstStage); return types[Math.floor(Math.random() * types.length)]; }
+        function initializeSky() { stars = []; for (let i = 0; i < 150; i++) { stars.push({ x: Math.random() * canvas.width, y: Math.random() * (canvas.height * 0.8), size: 0.5 + Math.random() * 1.5, brightness: Math.random() * 0.8 + 0.2 }); } clouds = []; for (let i = 0; i < 8; i++) { clouds.push({ x: Math.random() * canvas.width, y: 30 + Math.random() * 120, width: 60 + Math.random() * 70, height: 30 + Math.random() * 30, speed: 0.05 + Math.random() * 0.15 }); } }
+
+        function gameLoop(timestamp) {
+             const deltaTime = Math.min(0.05, (timestamp - lastTimestamp) / 1000); // Calculate delta time in seconds
+             lastTimestamp = timestamp;
+             autoSaveTimer += deltaTime * 1000; // Increment autosave timer in milliseconds
+
+             update(deltaTime);
+             draw();
+
+             if (autoSaveTimer >= AUTOSAVE_INTERVAL) {
+                 saveGame();
+                 autoSaveTimer = 0; // Reset timer
+             }
+             requestAnimationFrame(gameLoop);
+        }
+
+        function update(dt) {
+            handleInput(); // Player movement based on keys
+            updatePlayerPhysics(dt); // Gravity, velocity, collision
+            updateSky(dt); // Cloud movement
+        }
+
+        function draw() {
+            drawSky(); // Background, sun/moon, stars, clouds
+            drawWorld(); // All blocks in the world grid
+            drawPlayer(); // Player character and held item
+            drawUI(); // On-canvas text info
+        }
+
+        // --- Physics and Player Update ---
+
+        function handleInput() { // Convert MOVE_SPEED to pixels/sec
+             if (inventoryOpen || craftingOpen) { player.vx = 0; return; }; // Stop movement if menu open
+             let targetVx = 0;
+             if (keys['a'] || keys['arrowleft']) targetVx -= MOVE_SPEED * BLOCK_SIZE; // Speed in pixels/sec
+             if (keys['d'] || keys['arrowright']) targetVx += MOVE_SPEED * BLOCK_SIZE;
+             player.vx = targetVx; // Apply horizontal velocity based on input
+
+             // Jumping
+             if ((keys['w'] || keys['arrowup'] || keys[' ']) && player.onGround) {
+                 player.vy = JUMP_STRENGTH * BLOCK_SIZE; // Apply upward velocity (negative)
+                 player.onGround = false; // Player is no longer on the ground
+             }
+        }
+
+        function getBlockAt(pixelX, pixelY) {
+             const gridX = Math.floor(pixelX / BLOCK_SIZE);
+             const gridY = Math.floor(pixelY / BLOCK_SIZE);
+             // Check boundaries
+             if (gridX < 0 || gridX >= WORLD_WIDTH || gridY < 0 || gridY >= WORLD_HEIGHT) {
+                 return 'air'; // Treat outside world as air
+             }
+             // Safely access world array
+             return world[gridY]?.[gridX] || 'air'; // Return block type or 'air' if row/col undefined
+        }
+
+        function updatePlayerPhysics(dt) {
+            if (inventoryOpen || craftingOpen) return; // Don't update physics if a menu is open
+
+            // Apply Gravity if not on the ground
+            if (!player.onGround) {
+                player.vy += GRAVITY * BLOCK_SIZE * dt * 60; // Apply gravity scaled by block size and frame rate factor
+            }
+
+            // Calculate potential change in position
+            let dx = player.vx * dt;
+            let dy = player.vy * dt;
+
+            // --- Collision Detection & Resolution ---
+            const playerWidthPixels = PLAYER_WIDTH_BLOCKS * BLOCK_SIZE;
+            const playerHeightPixels = PLAYER_HEIGHT_BLOCKS * BLOCK_SIZE;
+            let currentX = player.x; // Player center X
+            let currentY = player.y; // Player top edge Y
+            let nextX = currentX + dx;
+            let nextY = currentY + dy;
+
+            player.onGround = false; // Assume not on ground until proven otherwise by collision check
+
+            // --- Check Vertical Movement & Collision ---
+            let collisionY = false;
+            if (dy > 0) { // Moving Down
+                const checkYPixel = currentY + playerHeightPixels + dy; // Predicted bottom edge position
+                const checkGridY = Math.floor(checkYPixel / BLOCK_SIZE); // Grid row the bottom edge will be in
+                // Check points slightly inside the player's left and right edges at the predicted bottom Y
+                const checkLeftPixel = currentX - playerWidthPixels / 2 + 1;
+                const checkRightPixel = currentX + playerWidthPixels / 2 - 1;
+
+                if (getBlockAt(checkLeftPixel, checkYPixel) !== 'air' || getBlockAt(checkRightPixel, checkYPixel) !== 'air') {
+                    // Collision detected below
+                    nextY = checkGridY * BLOCK_SIZE - playerHeightPixels; // Snap player's top edge just above the collided block
+                    player.vy = 0; // Stop vertical movement
+                    player.onGround = true; // Player has landed
+                    collisionY = true;
+                    // console.log("Landed on block at Y grid:", checkGridY);
+                }
+            } else if (dy < 0) { // Moving Up
+                const checkYPixel = currentY + dy; // Predicted top edge position
+                const checkGridY = Math.floor(checkYPixel / BLOCK_SIZE); // Grid row the top edge will be in
+                // Check points slightly inside the player's left and right edges at the predicted top Y
+                const checkLeftPixel = currentX - playerWidthPixels / 2 + 1;
+                const checkRightPixel = currentX + playerWidthPixels / 2 - 1;
+
+                if (getBlockAt(checkLeftPixel, checkYPixel) !== 'air' || getBlockAt(checkRightPixel, checkYPixel) !== 'air') {
+                    // Collision detected above
+                    nextY = (checkGridY + 1) * BLOCK_SIZE; // Snap player's top edge just below the collided block
+                    player.vy = 0; // Stop vertical movement (bonk)
+                    collisionY = true;
+                    // console.log("Hit head on block at Y grid:", checkGridY);
+                }
+            }
+
+             // --- Check Horizontal Movement & Collision ---
+             // Important: Use the potentially adjusted 'nextY' from vertical collision check for horizontal checks
+             let collisionX = false;
+             const collisionCheckY = collisionY ? nextY : currentY; // Y position to use for horizontal checks
+
+             if (dx > 0) { // Moving Right
+                 const checkXPixel = currentX + playerWidthPixels / 2 + dx; // Predicted right edge position
+                 const checkGridX = Math.floor(checkXPixel / BLOCK_SIZE); // Grid column the right edge will be in
+                 // Check points slightly inside the player's top and bottom edges at the predicted right X
+                 const checkTopPixel = collisionCheckY + 1;
+                 const checkBottomPixel = collisionCheckY + playerHeightPixels - 1;
+
+                 if (getBlockAt(checkXPixel, checkTopPixel) !== 'air' || getBlockAt(checkXPixel, checkBottomPixel) !== 'air') {
+                      // Collision detected right
+                      nextX = checkGridX * BLOCK_SIZE - playerWidthPixels / 2; // Snap player's center X so right edge is left of block
+                      player.vx = 0; // Stop horizontal movement
+                      collisionX = true;
+                      // console.log("Hit right wall at X grid:", checkGridX);
+                 }
+             } else if (dx < 0) { // Moving Left
+                 const checkXPixel = currentX - playerWidthPixels / 2 + dx; // Predicted left edge position
+                 const checkGridX = Math.floor(checkXPixel / BLOCK_SIZE); // Grid column the left edge will be in
+                 // Check points slightly inside the player's top and bottom edges at the predicted left X
+                 const checkTopPixel = collisionCheckY + 1;
+                 const checkBottomPixel = collisionCheckY + playerHeightPixels - 1;
+
+                 if (getBlockAt(checkXPixel, checkTopPixel) !== 'air' || getBlockAt(checkXPixel, checkBottomPixel) !== 'air') {
+                     // Collision detected left
+                     nextX = (checkGridX + 1) * BLOCK_SIZE + playerWidthPixels / 2; // Snap player's center X so left edge is right of block
+                     player.vx = 0; // Stop horizontal movement
+                     collisionX = true;
+                     // console.log("Hit left wall at X grid:", checkGridX);
+                 }
+             }
+
+
+            // Update Player Position with potentially corrected values
+            player.x = nextX;
+            player.y = nextY;
+
+            // Fall out of world check
+            if (player.y > WORLD_HEIGHT * BLOCK_SIZE + 100) { // Check if player fell significantly below world bottom
+                console.log("Fell out of the world!");
+                resetGame(); // Reset the game if player falls out
+            }
+        }
+
+
+        // --- Drawing Functions ---
+
+        function drawBlock(gridX, gridY, blockId, ctxTarget = ctx, size = BLOCK_SIZE) {
+            // Basic checks: If no block ID, air, or unknown block, don't draw
+            if (!blockId || blockId === 'air' || !BLOCKS[blockId]) return;
+            const blockData = BLOCKS[blockId];
+
+            // ***** CORRECTED LINE *****
+            // This check was preventing non-placeable blocks from rendering unless they were the central block.
+            // Commenting it out allows any block defined in BLOCKS and present in the world array to be drawn.
+            // if (!blockData.placeable && blockId !== world[CENTRAL_Y]?.[CENTRAL_X]) return;
+            // **************************
+
+            const px = gridX * size; // Pixel X coordinate (top-left)
+            const py = gridY * size; // Pixel Y coordinate (top-left)
+
+            // Get block appearance properties
+            const baseColor = blockData.color || '#CCCCCC'; // Default grey if no color
+            const detail1 = blockData.detail1 || lightenColor(baseColor, 20);
+            const detail2 = blockData.detail2 || darkenColor(baseColor, 20);
+            const topColor = blockData.top; // Specific color for the top surface (e.g., grass)
+            const texture = blockData.texture; // Texture type for special drawing logic
+
+            // Draw base color rectangle
+            ctxTarget.fillStyle = baseColor;
+            ctxTarget.fillRect(px, py, size, size);
+
+            // Apply texture details
+            if (texture === 'ore') { // Draw ore speckles
+                ctxTarget.fillStyle = detail1;
+                for (let i = 0; i < 4; i++) ctxTarget.fillRect(px + Math.random() * (size - 3), py + Math.random() * (size - 3), 3, 3);
+                ctxTarget.fillStyle = detail2;
+                for (let i = 0; i < 3; i++) ctxTarget.fillRect(px + Math.random() * (size - 4), py + Math.random() * (size - 4), 4, 4);
+            } else if (topColor) { // Draw top surface color (like grass)
+                ctxTarget.fillStyle = topColor;
+                ctxTarget.fillRect(px, py, size, size * 0.3); // Draw top part
+                // Add some speckles to the top
+                for (let i = 0; i < 3; i++) {
+                    ctxTarget.fillStyle = Math.random() > 0.5 ? detail1 : detail2;
+                    ctxTarget.fillRect(px + Math.random() * (size - 2), py + Math.random() * (size * 0.3 - 2), 2, 2);
+                }
+            } else if (texture === 'wood') { // Draw wood grain lines and knot
+                ctxTarget.fillStyle = detail1; // Lighter grain lines
+                for (let i = size * 0.1; i < size; i += size * 0.4) ctxTarget.fillRect(px + i, py, size * 0.15, size);
+                ctxTarget.fillStyle = detail2; // Darker knot/detail
+                ctxTarget.fillRect(px + size * 0.4 + (Math.random() - 0.5) * size * 0.1, py + size * 0.3 + (Math.random() - 0.5) * size * 0.4, size * 0.2, size * 0.2);
+            } else if (texture === 'plank') { // Draw horizontal plank lines
+                ctxTarget.fillStyle = detail1;
+                for(let i=size*0.2; i < size; i += size*0.25) {
+                    ctxTarget.fillRect(px, py + i, size, 1); // Thin horizontal lines
+                }
+            } else if (texture === 'crafting_table') { // Draw crafting table top and details
+                ctxTarget.fillStyle = topColor; // Top surface
+                ctxTarget.fillRect(px, py, size, size * 0.3);
+                // Draw tools/patterns on top
+                ctxTarget.fillStyle = detail1; // Saw
+                ctxTarget.fillRect(px + size*0.2, py + size*0.05, size*0.2, size*0.15);
+                ctxTarget.fillRect(px + size*0.6, py + size*0.1, size*0.3, size*0.1); // Hammer head?
+                ctxTarget.fillStyle = detail2; // Handle?
+                ctxTarget.fillRect(px + size*0.25, py + size*0.1, size*0.1, size*0.15);
+            } else if (texture === 'furnace') { // Draw furnace front details
+                ctxTarget.fillStyle = topColor; // Top rim
+                ctxTarget.fillRect(px, py, size, size * 0.2);
+                ctxTarget.fillStyle = detail2; // Dark opening
+                ctxTarget.fillRect(px + size*0.2, py + size*0.3, size*0.6, size*0.4);
+                ctxTarget.strokeStyle = detail1; // Lighter border around opening
+                ctxTarget.lineWidth = 1;
+                ctxTarget.strokeRect(px + size*0.15, py + size*0.25, size*0.7, size*0.6);
+            } else { // Default: Add some random speckles for visual variety
+                for (let i = 0; i < 5; i++) {
+                    ctxTarget.fillStyle = Math.random() > 0.5 ? detail1 : detail2;
+                    const speckleSize = 1 + Math.random() * (size * 0.1);
+                    ctxTarget.fillRect(px + Math.random() * (size - speckleSize), py + Math.random() * (size - speckleSize), speckleSize, speckleSize);
+                }
+            }
+
+            // Draw subtle border around the block
+            ctxTarget.strokeStyle = 'rgba(0,0,0,0.15)';
+            ctxTarget.lineWidth = 1;
+            ctxTarget.strokeRect(px + 0.5, py + 0.5, size - 1, size - 1);
+        }
+
+        function drawItemIcon(itemId, ctxTarget, size) {
+            ctxTarget.clearRect(0, 0, size, size); // Clear the target canvas area first
+            if (!itemId || !ITEMS[itemId]) return; // Exit if no item or item data missing
+
+            const itemInfo = ITEMS[itemId];
+            const blockId = itemInfo.blockId; // Check if this item corresponds to a block
+
+            if (itemInfo.type === 'block' && blockId && BLOCKS[blockId]) {
+                // If it's a block item, draw the block itself as the icon
+                drawBlock(0, 0, blockId, ctxTarget, size);
+            } else {
+                // Generic icon for non-block items (materials, tools)
+                ctxTarget.fillStyle = itemInfo.color || '#888888'; // Use item color or default grey
+                ctxTarget.fillRect(size*0.1, size*0.1, size * 0.8, size * 0.8); // Draw colored square
+                ctxTarget.strokeStyle = '#ccc'; // Add border
+                ctxTarget.strokeRect(size*0.1+0.5, size*0.1+0.5, size * 0.8-1, size * 0.8-1);
+
+                // Add simple indicators based on item type or specific ID
+                ctxTarget.fillStyle = '#eee';
+                ctxTarget.textAlign = 'center';
+                ctxTarget.textBaseline = 'middle';
+                if (itemInfo.type === 'tool') { // Indicate tool with 'T'
+                    ctxTarget.font = `${size * 0.6}px Arial`;
+                    ctxTarget.fillText('T', size / 2, size / 2 +1);
+                } else if (itemId === 'stick') { // Draw a diagonal line for stick
+                    ctxTarget.strokeStyle = '#8B4513'; // Brown color
+                    ctxTarget.lineWidth = Math.max(1, size * 0.1);
+                    ctxTarget.beginPath();
+                    ctxTarget.moveTo(size*0.2, size*0.8);
+                    ctxTarget.lineTo(size*0.8, size*0.2);
+                    ctxTarget.stroke();
+                } else if (itemId === 'coal'){ // Draw a black circle for coal
+                     ctxTarget.fillStyle = '#333';
+                     ctxTarget.beginPath();
+                     ctxTarget.arc(size / 2, size / 2, size * 0.3, 0, Math.PI * 2);
+                     ctxTarget.fill();
+                } else { // Default indicator 'M' for other materials
+                    ctxTarget.font = `${size * 0.5}px Arial`;
+                    ctxTarget.fillText('M', size / 2, size / 2+1);
+                }
+            }
+        }
+
+        function drawWorld() {
+             // Iterate through the world grid
+             for (let y = 0; y < WORLD_HEIGHT; y++) {
+                 for (let x = 0; x < WORLD_WIDTH; x++) {
+                     // Draw the block at each grid position using its ID from the world array
+                     drawBlock(x, y, world[y][x]);
+                 }
+             }
+        }
+
+        function drawPlayer() {
+            const px = player.x; // Center X
+            const py = player.y; // Top Y
+            const playerWidthPixels = PLAYER_WIDTH_BLOCKS * BLOCK_SIZE;
+            const playerHeightPixels = PLAYER_HEIGHT_BLOCKS * BLOCK_SIZE;
+            const bodyHeight = BLOCK_SIZE * 1; // Body is roughly 1 block high
+            const headHeight = playerHeightPixels - bodyHeight; // Head is the remaining height
+
+            // Draw body (blue rectangle)
+            ctx.fillStyle = '#007bff'; // Blue color
+            ctx.fillRect(px - playerWidthPixels / 2, py + headHeight, playerWidthPixels, bodyHeight);
+
+            // Draw head (red rectangle)
+            ctx.fillStyle = '#dc3545'; // Red color
+            ctx.fillRect(px - playerWidthPixels / 2, py, playerWidthPixels, headHeight);
+
+            // Draw eyes (small white squares)
+            ctx.fillStyle = 'white';
+            const eyeSize = playerWidthPixels * 0.15;
+            const eyeY = py + headHeight * 0.3;
+            ctx.fillRect(px - playerWidthPixels * 0.2 - eyeSize/2, eyeY, eyeSize, eyeSize); // Left eye
+            ctx.fillRect(px + playerWidthPixels * 0.2 - eyeSize/2, eyeY, eyeSize, eyeSize); // Right eye
+
+            // Draw held item
+            const heldItemSlot = hotbar[activeHotbarSlot];
+            if (heldItemSlot && heldItemSlot.itemId) {
+                const itemSize = BLOCK_SIZE * 0.7; // Size of the item icon when held
+                // Use a temporary canvas to draw the item icon
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = itemSize; tempCanvas.height = itemSize;
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.imageSmoothingEnabled = false; // Keep it pixelated
+                drawItemIcon(heldItemSlot.itemId, tempCtx, itemSize); // Draw the icon onto the temp canvas
+
+                // Draw the temp canvas onto the main game canvas
+                ctx.globalAlpha = 0.9; // Slightly transparent
+                const itemInfo = ITEMS[heldItemSlot.itemId];
+                // Adjust position slightly based on item type (tools held differently?) - simple offset for now
+                const drawX = px + playerWidthPixels * (itemInfo?.type === 'tool' ? -0.1 : 0.1);
+                const drawY = py + headHeight + bodyHeight * 0.1; // Position near hand level
+                ctx.drawImage(tempCanvas, drawX, drawY, itemSize, itemSize);
+                ctx.globalAlpha = 1.0; // Reset alpha
+            }
+        }
+
+        function drawSky() {
+            const elapsedTime = Date.now() - startTime;
+            const cycleTime = DAY_DURATION + NIGHT_DURATION;
+            const currentCycleTime = elapsedTime % cycleTime;
+
+            // Calculate progress through day (0-1) and night (0-1)
+            const dayProgress = Math.min(1, currentCycleTime / DAY_DURATION);
+            const nightProgress = Math.max(0, (currentCycleTime - DAY_DURATION) / NIGHT_DURATION);
+
+            let skyColor;
+            const dawnDuration = 0.1; // Fraction of day/night for transitions
+            const duskDuration = 0.1;
+
+            isNight = currentCycleTime >= DAY_DURATION; // Update global night status
+            dayCount = Math.floor(elapsedTime / cycleTime); // Update global day count
+
+            // Define key colors for interpolation
+            const dayColor = [135, 206, 250]; // Light blue
+            const nightColor = [15, 23, 42];   // Very dark blue
+            const sunsetColor = [255, 140, 0];  // Orange/Red
+            const dawnColor = [255, 192, 203]; // Pink/Orange
+
+            // Determine sky color based on time of day/night and transition phases
+            if (!isNight) { // Daytime
+                if (dayProgress < dawnDuration) { // Dawn transition
+                    skyColor = lerpColor(dawnColor, dayColor, dayProgress / dawnDuration);
+                } else if (dayProgress > (1 - duskDuration)) { // Dusk transition
+                    skyColor = lerpColor(dayColor, sunsetColor, (dayProgress - (1 - duskDuration)) / duskDuration);
+                } else { // Mid-day
+                    skyColor = `rgb(${dayColor.join(',')})`;
+                }
+            } else { // Nighttime
+                if (nightProgress < dawnDuration) { // Transition from sunset to night
+                    skyColor = lerpColor(sunsetColor, nightColor, nightProgress / dawnDuration);
+                } else if (nightProgress > (1 - duskDuration)) { // Transition from night to dawn
+                    skyColor = lerpColor(nightColor, dawnColor, (nightProgress - (1 - duskDuration)) / duskDuration);
+                } else { // Mid-night
+                    skyColor = `rgb(${nightColor.join(',')})`;
+                }
+            }
+
+            // Fill background with calculated sky color
+            ctx.fillStyle = skyColor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Stars (visible mainly at night, fade in/out during transitions)
+            const starVisibility = Math.max(0,
+                isNight ? (nightProgress < (1-duskDuration/2) ? (nightProgress > dawnDuration/2 ? 1 : (nightProgress-dawnDuration/2)*2/dawnDuration) : (1 - (nightProgress - (1-duskDuration/2))*2/duskDuration))
+                        : (dayProgress < dawnDuration/2 ? (1 - dayProgress*2/dawnDuration) : (dayProgress > (1-duskDuration/2) ? (dayProgress - (1-duskDuration/2))*2/duskDuration : 0))
+            );
+            if (starVisibility > 0) {
+                stars.forEach(star => {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${star.brightness * starVisibility * (0.6 + Math.random() * 0.4)})`; // Random flicker + visibility fade
+                    ctx.fillRect(star.x, star.y, star.size, star.size);
+                });
+            }
+
+            // Draw Clouds (visible mainly during day, fade out at dusk, fade in at dawn)
+            const cloudVisibility = Math.max(0,
+                 !isNight ? (dayProgress < (1-duskDuration/2) ? 1 : (1 - (dayProgress - (1-duskDuration/2))/(duskDuration/2)) )
+                          : (nightProgress < dawnDuration/2 ? (1 - nightProgress*2/dawnDuration) : 0)
+            );
+            if(cloudVisibility > 0) {
+                clouds.forEach(cloud => {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${0.8 * cloudVisibility})`; // White clouds, fade with visibility
+                    // Draw simple cloud shape using overlapping rectangles
+                    ctx.fillRect(cloud.x, cloud.y, cloud.width, cloud.height);
+                    ctx.fillRect(cloud.x + cloud.width * 0.2, cloud.y - cloud.height * 0.3, cloud.width * 0.6, cloud.height * 0.6);
+                    ctx.fillRect(cloud.x + cloud.width * 0.1, cloud.y + cloud.height * 0.8, cloud.width * 0.8, cloud.height * 0.4);
+                });
+            }
+
+            // Draw Sun/Moon
+            const celestialRadius = BLOCK_SIZE * 1.5; // Size of sun/moon
+            const celestialPathRadius = canvas.width / 2 - celestialRadius * 2.5; // Radius of the arc path
+            // Calculate angle based on time (full circle over day+night)
+            const angle = (currentCycleTime / cycleTime) * 2 * Math.PI - Math.PI / 2; // Start at top (-PI/2)
+            // Calculate X/Y position along the arc
+            const celestialX = canvas.width / 2 + celestialPathRadius * Math.cos(angle);
+            const celestialY = canvas.height * 0.45 + celestialPathRadius * Math.sin(angle) * 0.7; // Make path flatter (eliptical)
+
+            // Draw sun or moon only if it's above the horizon (approx)
+            if (celestialY < canvas.height * 0.9) {
+                if (!isNight) {
+                    drawSun(celestialX, celestialY, celestialRadius);
+                } else {
+                    drawMoon(celestialX, celestialY, celestialRadius);
+                }
+            }
+        }
+
+        function updateSky(dt) {
+            // Move clouds horizontally
+            clouds.forEach(cloud => {
+                cloud.x += cloud.speed * (dt * 60); // Move based on speed and frame time factor
+                // Wrap clouds around the screen
+                if (cloud.x > canvas.width) {
+                    cloud.x = -cloud.width; // Reset position to the left when off-screen right
+                }
+            });
+        }
+
+        function drawSun(x, y, radius) {
+            // Create a radial gradient for a glowing effect
+            const gradient = ctx.createRadialGradient(x, y, radius * 0.5, x, y, radius * 1.3);
+            gradient.addColorStop(0, 'rgba(255, 255, 200, 1)');   // Bright yellow center
+            gradient.addColorStop(0.6, 'rgba(255, 255, 0, 0.8)'); // Yellow halo
+            gradient.addColorStop(1, 'rgba(255, 165, 0, 0)');    // Fading orange outer glow
+
+            ctx.fillStyle = gradient;
+            ctx.fillRect(x - radius * 1.5, y - radius * 1.5, radius * 3, radius * 3); // Draw larger rect to contain gradient glow
+        }
+
+        function drawMoon(x, y, radius) {
+            // Draw base moon circle
+            ctx.fillStyle = '#F5F5F5'; // Off-white color
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw simple craters using slightly darker grey circles
+            ctx.fillStyle = 'rgba(180, 180, 180, 0.7)';
+            ctx.beginPath();
+            ctx.arc(x + radius * 0.4, y - radius * 0.3, radius * 0.25, 0, Math.PI * 2); // Small crater 1
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(x - radius * 0.3, y + radius * 0.4, radius * 0.35, 0, Math.PI * 2); // Small crater 2
+            ctx.fill();
+        }
+
+        function drawUI() {
+            // Draw text information on the canvas
+            ctx.fillStyle = 'white';
+            ctx.font = '14px "Segoe UI", sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.shadowColor = 'black'; // Add shadow for readability
+            ctx.shadowBlur = 4;
+
+            ctx.fillText(`Blocks Broken: ${blockBreaks}`, 10, 10);
+            ctx.fillText(`Days Passed: ${dayCount}`, 10, 30);
+            ctx.fillText(`Stage: ${currentStageLabel}`, 10, 50);
+
+            ctx.shadowBlur = 0; // Reset shadow
+        }
+
+        // --- Hotbar Functions ---
+        function createHotbarSlots() {
+            hotbarDiv.innerHTML = ''; // Clear existing slots
+            for (let i = 0; i < HOTBAR_SLOTS; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'hotbar-slot';
+                slot.dataset.slotIndex = i; // Store index for click events
+
+                // Canvas for item icon
+                const canvasEl = document.createElement('canvas');
+                canvasEl.width = 32; canvasEl.height = 32;
+                slot.appendChild(canvasEl);
+
+                // Span for item count
+                const countSpan = document.createElement('span');
+                countSpan.className = 'item-count';
+                slot.appendChild(countSpan);
+
+                // Divs for durability bar
+                const durabilityDiv = document.createElement('div');
+                durabilityDiv.className = 'item-durability';
+                durabilityDiv.style.display = 'none'; // Hidden by default
+                const durabilityBar = document.createElement('div');
+                durabilityBar.className = 'item-durability-bar';
+                durabilityDiv.appendChild(durabilityBar);
+                slot.appendChild(durabilityDiv);
+
+                // Click listener to select the slot
+                slot.addEventListener('click', () => setActiveHotbarSlot(i));
+
+                hotbarDiv.appendChild(slot);
+            }
+        }
+
+        function updateHotbarDisplay() {
+            const slots = hotbarDiv.querySelectorAll('.hotbar-slot');
+            slots.forEach((slot, i) => {
+                const itemSlotData = hotbar[i]; // Get data for this slot
+                const canvasEl = slot.querySelector('canvas');
+                const countSpan = slot.querySelector('.item-count');
+                const durabilityDiv = slot.querySelector('.item-durability');
+                const durabilityBar = slot.querySelector('.item-durability-bar');
+                const ctx = canvasEl.getContext('2d');
+                ctx.imageSmoothingEnabled = false; // Pixelated rendering
+
+                if (itemSlotData && itemSlotData.itemId && ITEMS[itemSlotData.itemId]) {
+                    // If slot has a valid item, draw its icon
+                    drawItemIcon(itemSlotData.itemId, ctx, 32);
+                    // Display quantity if more than 1
+                    countSpan.textContent = itemSlotData.quantity > 1 ? itemSlotData.quantity : '';
+
+                    // Handle durability display for tools
+                    const itemInfo = ITEMS[itemSlotData.itemId];
+                    if (itemInfo.type === 'tool' && itemInfo.maxDurability > 0 && itemSlotData.durability !== undefined) {
+                        const durabilityPercent = Math.max(0, (itemSlotData.durability / itemInfo.maxDurability) * 100);
+                        durabilityDiv.style.display = 'block'; // Show durability bar
+                        durabilityBar.style.width = `${durabilityPercent}%`; // Set width based on percentage
+                        // Change color based on durability level
+                        if (durabilityPercent < 20) durabilityBar.style.backgroundColor = 'red';
+                        else if (durabilityPercent < 50) durabilityBar.style.backgroundColor = 'yellow';
+                        else durabilityBar.style.backgroundColor = 'lime';
+                    } else {
+                        durabilityDiv.style.display = 'none'; // Hide durability bar if not a tool or full
+                    }
+                } else {
+                    // If slot is empty, clear icon, count, and durability
+                    ctx.clearRect(0, 0, 32, 32);
+                    countSpan.textContent = '';
+                    durabilityDiv.style.display = 'none';
+                }
+                // Highlight the active slot
+                slot.classList.toggle('active', i === activeHotbarSlot);
+            });
+        }
+
+        function setActiveHotbarSlot(index) {
+            if (index >= 0 && index < HOTBAR_SLOTS) {
+                activeHotbarSlot = index;
+                updateHotbarDisplay(); // Update visuals to show new active slot
+            }
+        }
+
+        function addItemToHotbar(itemId, quantity = 1, durability = null) {
+            if (!ITEMS[itemId]) return false; // Invalid item ID
+
+            const itemInfo = ITEMS[itemId];
+            const maxStack = itemInfo.stack || 1;
+            let remainingQuantity = quantity;
+
+            // 1. Try to stack with existing items of the same type
+            for (let i = 0; i < HOTBAR_SLOTS && remainingQuantity > 0; i++) {
+                const slot = hotbar[i];
+                // Check if slot exists, has the same item, and isn't full
+                if (slot && slot.itemId === itemId && slot.quantity < maxStack) {
+                    const canAdd = maxStack - slot.quantity;
+                    const toAdd = Math.min(remainingQuantity, canAdd);
+                    slot.quantity += toAdd;
+                    remainingQuantity -= toAdd;
+                }
+            }
+
+            // 2. Try to place remaining items in empty slots
+            for (let i = 0; i < HOTBAR_SLOTS && remainingQuantity > 0; i++) {
+                if (!hotbar[i]) { // Found an empty slot
+                    const toAdd = Math.min(remainingQuantity, maxStack);
+                    hotbar[i] = {
+                        itemId: itemId,
+                        quantity: toAdd,
+                        // Add durability if it's a tool (use provided or max)
+                        ...(itemInfo.type === 'tool' && { durability: durability ?? itemInfo.maxDurability })
+                    };
+                    remainingQuantity -= toAdd;
+                }
+            }
+
+            updateHotbarDisplay(); // Update visuals
+            return remainingQuantity === 0; // Return true if all items were added
+        }
+
+        function removeItemFromHotbar(slotIndex, quantity = 1) {
+            if (slotIndex < 0 || slotIndex >= HOTBAR_SLOTS || !hotbar[slotIndex]) return false; // Invalid slot or empty
+
+            const slot = hotbar[slotIndex];
+            if (slot.quantity >= quantity) {
+                slot.quantity -= quantity;
+                // If quantity drops to 0 or less, remove the item entirely
+                if (slot.quantity <= 0) {
+                    hotbar[slotIndex] = null;
+                }
+                updateHotbarDisplay(); // Update visuals
+                return true; // Removal successful
+            }
+            return false; // Not enough items in the slot to remove
+        }
+
+        // --- Inventory & Crafting Menu Functions ---
+        function toggleInventory() {
+             inventoryOpen = !inventoryOpen;
+             if (inventoryOpen) {
+                 craftingOpen = false; // Close crafting if opening inventory
+                 craftingMenu.style.display = 'none';
+                 updateInventoryMenu(); // Populate inventory when opened
+             }
+             inventoryMenu.style.display = inventoryOpen ? 'block' : 'none';
+             // console.log("Inventory toggled:", inventoryOpen);
+        }
+
+        function toggleCrafting() {
+             craftingOpen = !craftingOpen;
+             if (craftingOpen) {
+                 inventoryOpen = false; // Close inventory if opening crafting
+                 inventoryMenu.style.display = 'none';
+                 updateCraftingMenu(); // Populate crafting when opened
+             }
+             craftingMenu.style.display = craftingOpen ? 'block' : 'none';
+             // console.log("Crafting toggled:", craftingOpen);
+        }
+
+        function updateInventoryMenu() {
+            inventorySlots.innerHTML = ''; // Clear previous content
+            const categorizedItems = {};
+
+            // Categorize items in inventory
+            for (const itemId in inventory) {
+                if (inventory[itemId] > 0 && ITEMS[itemId]) {
+                    const itemInfo = ITEMS[itemId];
+                    let category = 'Misc'; // Default category
+                    if (itemInfo.type === 'block') category = 'Blocks';
+                    else if (itemInfo.type === 'tool') category = 'Tools';
+                    else if (itemInfo.type === 'material') category = 'Materials';
+
+                    if (!categorizedItems[category]) categorizedItems[category] = [];
+                    categorizedItems[category].push(itemId);
+                }
+            }
+
+            // Sort categories alphabetically
+            const sortedCategories = Object.keys(categorizedItems).sort();
+
+            // Create HTML for each category and its items
+            for (const category of sortedCategories) {
+                const categoryDiv = document.createElement('div');
+                categoryDiv.className = 'category'; // Add 'collapsed' later if needed
+
+                const categoryTitle = document.createElement('h3');
+                categoryTitle.textContent = category;
+                categoryTitle.onclick = () => categoryDiv.classList.toggle('collapsed'); // Toggle collapse on click
+                categoryDiv.appendChild(categoryTitle);
+
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'category-content';
+
+                // Sort items within category alphabetically by name
+                categorizedItems[category].sort((a,b) => ITEMS[a].name.localeCompare(ITEMS[b].name)).forEach(itemId => {
+                    const itemInfo = ITEMS[itemId];
+                    const currentCount = inventory[itemId];
+
+                    // Create slot element
+                    const slot = document.createElement('div');
+                    const blockData = itemInfo.type === 'block' && itemInfo.blockId ? BLOCKS[itemInfo.blockId] : null;
+                    const rarity = blockData?.rarity || itemInfo.rarity || 'common'; // Get rarity for border
+                    slot.className = `inventory-slot ${rarity}`;
+
+                    // Info div (icon + name/count)
+                    const slotInfoDiv = document.createElement('div');
+                    slotInfoDiv.className = 'slot-info';
+
+                    // Item Icon Canvas
+                    const itemCanvas = document.createElement('canvas');
+                    itemCanvas.width = 32; itemCanvas.height = 32;
+                    itemCanvas.style.width = `32px`; itemCanvas.style.height = `32px`; // Ensure CSS size matches canvas resolution
+                    const itemCtx = itemCanvas.getContext('2d');
+                    itemCtx.imageSmoothingEnabled = false;
+                    drawItemIcon(itemId, itemCtx, 32); // Draw the icon
+
+                    // Item Details Span
+                    const details = document.createElement('span');
+                    details.textContent = `${itemInfo.name} (${currentCount})`;
+
+                    slotInfoDiv.appendChild(itemCanvas);
+                    slotInfoDiv.appendChild(details);
+                    slot.appendChild(slotInfoDiv);
+
+                    // 'To Hotbar' Button
+                    const button = document.createElement('button');
+                    button.textContent = 'To Hotbar';
+                    button.onclick = (event) => {
+                        event.stopPropagation(); // Prevent category collapse toggle
+                        const currentHotbarItem = hotbar[activeHotbarSlot];
+                        const itemMaxStack = itemInfo.stack || 1;
+
+                        // Check if hotbar slot is empty OR contains the same item type and isn't full
+                        if (!currentHotbarItem || (currentHotbarItem.itemId === itemId && currentHotbarItem.quantity < itemMaxStack)) {
+                            if (inventory[itemId] >= 1) { // Ensure item exists in inventory
+                                addOrUpdateInventory(itemId, -1); // Remove 1 from inventory
+
+                                // Add/update hotbar slot
+                                if (!currentHotbarItem) { // If hotbar slot was empty
+                                    hotbar[activeHotbarSlot] = {
+                                        itemId: itemId,
+                                        quantity: 1,
+                                        // Add durability if it's a tool
+                                        ...(itemInfo.type === 'tool' && { durability: itemInfo.maxDurability })
+                                    };
+                                } else { // If hotbar slot had same item
+                                    currentHotbarItem.quantity++;
+                                    // Reset durability if it's a tool being added to stack (optional, could average etc.)
+                                    if(itemInfo.type === 'tool') currentHotbarItem.durability = itemInfo.maxDurability;
+                                }
+                                // Refresh displays
+                                updateInventoryMenu(); // Update inventory counts
+                                updateHotbarDisplay(); // Update hotbar counts/icons
+                            }
+                        } else {
+                            console.log("Cannot move to hotbar: Slot full or contains different item.");
+                        }
+                    };
+
+                    // Check if this item is already the one selected in the hotbar
+                    const activeHotbarItem = hotbar[activeHotbarSlot];
+                    if (activeHotbarItem && activeHotbarItem.itemId === itemId) {
+                        button.classList.add('selected-in-hotbar');
+                        button.textContent = 'In Hotbar'; // Change text
+                        button.disabled = true; // Disable button if already in active slot
+                    }
+
+                    slot.appendChild(button);
+                    contentDiv.appendChild(slot);
+                });
+                categoryDiv.appendChild(contentDiv);
+                inventorySlots.appendChild(categoryDiv);
+            }
+
+            // Display message if inventory is empty
+            if (inventorySlots.children.length === 0) {
+                inventorySlots.innerHTML = '<p style="text-align: center; color: #aaa;">Inventory is empty.</p>';
+            }
+            // console.log("Inventory menu updated.");
+        }
+
+        function updateCraftingMenu() {
+            craftingSlots.innerHTML = ''; // Clear previous content
+            const sortedCategories = Object.keys(RECIPES).sort(); // Get and sort recipe categories
+
+            for (const category of sortedCategories) {
+                const categoryDiv = document.createElement('div');
+                categoryDiv.className = 'category';
+
+                const categoryTitle = document.createElement('h3');
+                categoryTitle.textContent = category;
+                categoryTitle.onclick = () => categoryDiv.classList.toggle('collapsed');
+                categoryDiv.appendChild(categoryTitle);
+
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'category-content';
+
+                // Sort recipes within category alphabetically by result name
+                RECIPES[category].sort((a,b) => ITEMS[a.result].name.localeCompare(ITEMS[b.result].name)).forEach(recipe => {
+                    const resultItemInfo = ITEMS[recipe.result];
+                    if (!resultItemInfo) return; // Skip if result item data is missing
+
+                    const slot = document.createElement('div');
+                    slot.className = 'recipe-slot'; // Add rarity later if needed
+
+                    // Info div (icon + name/amount)
+                    const slotInfoDiv = document.createElement('div');
+                    slotInfoDiv.className = 'slot-info';
+
+                    // Result Item Icon Canvas
+                    const resultCanvas = document.createElement('canvas');
+                    resultCanvas.width = 32; resultCanvas.height = 32;
+                    resultCanvas.style.width = `32px`; resultCanvas.style.height = `32px`;
+                    const resultCtx = resultCanvas.getContext('2d');
+                    resultCtx.imageSmoothingEnabled = false;
+                    drawItemIcon(recipe.result, resultCtx, 32);
+
+                    // Recipe Details Span
+                    const details = document.createElement('span');
+                    details.textContent = `${resultItemInfo.name} x${recipe.amount}`;
+
+                    slotInfoDiv.appendChild(resultCanvas);
+                    slotInfoDiv.appendChild(details);
+                    slot.appendChild(slotInfoDiv);
+
+                    // Craft Button
+                    const button = document.createElement('button');
+                    button.textContent = 'Craft';
+                    button.onclick = (event) => {
+                        event.stopPropagation(); // Prevent category collapse
+                        craftRecipe(recipe); // Attempt to craft this recipe
+                    };
+
+                    // Tooltip showing requirements
+                    const tooltip = document.createElement('span');
+                    tooltip.className = 'tooltip';
+                    let reqText = Object.entries(recipe.requires)
+                        .map(([reqId, amt]) => `${amt} ${ITEMS[reqId]?.name || 'Unknown'}`) // Get names of required items
+                        .join('\n'); // Newline for each requirement
+                    tooltip.textContent = `Requires:\n${reqText}`;
+                    button.appendChild(tooltip);
+
+                    // Disable button if recipe cannot be crafted
+                    button.disabled = !canCraft(recipe);
+                    if (!button.disabled) {
+                        button.classList.add('craftable'); // Style craftable buttons differently
+                    }
+
+                    slot.appendChild(button);
+                    contentDiv.appendChild(slot);
+                });
+                categoryDiv.appendChild(contentDiv);
+                craftingSlots.appendChild(categoryDiv);
+            }
+
+            // Display message if no recipes are available (or loaded)
+            if (craftingSlots.children.length === 0) {
+                craftingSlots.innerHTML = '<p style="text-align: center; color: #aaa;">No recipes available.</p>';
+            }
+            // console.log("Crafting menu updated.");
+        }
+
+        function canCraft(recipe) {
+            // Check if player has enough of each required item in inventory
+            return Object.entries(recipe.requires).every(([itemId, requiredAmount]) => {
+                return (inventory[itemId] || 0) >= requiredAmount;
+            });
+        }
+
+        function craftRecipe(recipe) {
+            if (canCraft(recipe)) {
+                // 1. Consume required items from inventory
+                Object.entries(recipe.requires).forEach(([itemId, requiredAmount]) => {
+                    addOrUpdateInventory(itemId, -requiredAmount);
+                });
+                // 2. Add resulting item(s) to inventory
+                addOrUpdateInventory(recipe.result, recipe.amount);
+
+                // 3. Refresh relevant menus if they are open
+                if (inventoryOpen) updateInventoryMenu();
+                if (craftingOpen) updateCraftingMenu(); // Update to show new counts/craftability
+
+                console.log(`Crafted ${recipe.amount}x ${ITEMS[recipe.result]?.name || 'Unknown'}!`);
+            } else {
+                console.log(`Cannot craft ${ITEMS[recipe.result]?.name || 'Unknown'}: Missing ingredients.`);
+            }
+        }
+
+        // --- Interactions & World Logic ---
+
+        function handleInteraction(event) {
+            if (inventoryOpen || craftingOpen) return; // Ignore clicks if menu is open
+
+            const rect = canvas.getBoundingClientRect();
+            const clickPixelX = event.clientX - rect.left;
+            const clickPixelY = event.clientY - rect.top;
+
+            // Convert pixel coordinates to grid coordinates
+            const clickGridX = Math.floor(clickPixelX / BLOCK_SIZE);
+            const clickGridY = Math.floor(clickPixelY / BLOCK_SIZE);
+
+            // Check if click is within world boundaries
+            if (clickGridX < 0 || clickGridX >= WORLD_WIDTH || clickGridY < 0 || clickGridY >= WORLD_HEIGHT) return;
+
+            // Check if the clicked block is within reach
+            if (isWithinReach(clickGridX, clickGridY)) {
+                const targetBlockId = world[clickGridY][clickGridX]; // Get the block ID at the clicked location
+
+                if (event.button === 2 || event.shiftKey) { // Right-click or Shift+Click for placing
+                    event.preventDefault(); // Prevent browser context menu
+                    handlePlaceBlock(clickGridX, clickGridY, targetBlockId);
+                }
+                else if (event.button === 0) { // Left-click for breaking
+                    handleBreakBlock(clickGridX, clickGridY, targetBlockId);
+                }
+            } else {
+                console.log("Target block out of reach.");
+            }
+        }
+
+        function handleBreakBlock(gridX, gridY, targetBlockId) {
+             if (!targetBlockId || targetBlockId === 'air') return; // Can't break air
+
+             const blockInfo = BLOCKS[targetBlockId];
+             if (!blockInfo) {
+                 console.error(`Cannot break unknown block ID: ${targetBlockId}`);
+                 return;
+             }
+             // console.log(`Breaking block: ${blockInfo.name || targetBlockId} at [${gridX}, ${gridY}]`);
+
+             // Handle tool usage and durability
+             const heldItemSlot = hotbar[activeHotbarSlot];
+             const heldItemId = heldItemSlot?.itemId;
+             const heldItemInfo = heldItemId ? ITEMS[heldItemId] : null;
+
+             if (heldItemInfo && heldItemInfo.type === 'tool') {
+                 if (heldItemSlot.durability !== undefined) {
+                     heldItemSlot.durability -= 1; // Decrease durability
+                     // console.log(`Tool durability: ${heldItemSlot.durability}/${heldItemInfo.maxDurability}`);
+                     if (heldItemSlot.durability <= 0) {
+                         console.log(`${heldItemInfo.name} broke!`);
+                         hotbar[activeHotbarSlot] = null; // Remove broken tool
+                     }
+                     updateHotbarDisplay(); // Update hotbar to show durability change/removal
+                 }
+             }
+
+             // Add block drops to inventory
+             if (blockInfo.drops) {
+                 // console.log(`Block dropped: ${blockInfo.drops}`);
+                 addOrUpdateInventory(blockInfo.drops, 1);
+                 if (inventoryOpen) updateInventoryMenu(); // Refresh inventory if open
+             } else {
+                 // console.log("Block has no drops.");
+             }
+
+             // Check if it's the central regenerating block
+             if (gridX === CENTRAL_X && gridY === CENTRAL_Y) {
+                 blockBreaks++; // Increment break counter
+                 updateCurrentStage(); // Update game stage based on breaks
+                 lastCentralBlockType = getRandomCentralBlock(); // Get next block type for center
+                 world[gridY][gridX] = lastCentralBlockType; // Replace central block
+                 // console.log(`Central block regenerated as ${lastCentralBlockType}. Breaks: ${blockBreaks}`);
+             } else {
+                 // If not the central block, just replace it with air
+                 world[gridY][gridX] = 'air';
+                 // console.log(`Block at [${gridX}, ${gridY}] set to air.`);
+             }
+        }
+
+        function handlePlaceBlock(gridX, gridY, targetBlockId) {
+             // console.log(`Attempt Place: Target [${gridX}, ${gridY}] is ${targetBlockId}`);
+
+             // Can only place blocks in 'air' locations
+             if (targetBlockId === 'air') {
+                 const selectedHotbarItem = hotbar[activeHotbarSlot];
+
+                 // Check if an item is selected in the hotbar
+                 if (!selectedHotbarItem || !selectedHotbarItem.itemId) {
+                      // console.log("Place failed: No item selected in hotbar.");
+                      return;
+                 }
+
+                 const itemInfo = ITEMS[selectedHotbarItem.itemId];
+                 if (!itemInfo) {
+                      console.error(`Place failed: Item ID ${selectedHotbarItem.itemId} not found in ITEMS`);
+                      return;
+                 }
+                 // console.log(`  Selected item: ${itemInfo.name} (Type: ${itemInfo.type}, BlockID: ${itemInfo.blockId})`);
+
+                 // Check if the selected item is a placeable block type
+                 if (itemInfo.type === 'block' && itemInfo.blockId) {
+                      const blockToPlaceInfo = BLOCKS[itemInfo.blockId];
+                      if (blockToPlaceInfo && blockToPlaceInfo.placeable) {
+                           // console.log(`  Item is placeable as ${itemInfo.blockId}`);
+
+                           // Check if there is an adjacent block (cannot place floating blocks)
+                           if (hasAdjacentBlock(gridX, gridY)) {
+                                // console.log("  Adjacent block found.");
+
+                                // Place the block in the world grid
+                                world[gridY][gridX] = itemInfo.blockId;
+                                // console.log(`  SUCCESS: Placed block ${itemInfo.blockId} at [${gridX}, ${gridY}]`);
+
+                                // Consume one item from the hotbar slot
+                                if(removeItemFromHotbar(activeHotbarSlot, 1)) {
+                                     // console.log("  Item consumed from hotbar.");
+                                } else {
+                                     console.error("  Failed to consume item from hotbar after placing block!");
+                                     // Should ideally revert the placement if consumption fails, but complex.
+                                     // world[gridY][gridX] = 'air'; // Revert
+                                }
+                           } else {
+                               // console.log("Place failed: requires adjacent block.");
+                           }
+                      } else {
+                           // console.log(`Place failed: Block type ${itemInfo.blockId} from item is not placeable or not found in BLOCKS.`);
+                      }
+                 } else {
+                      // console.log(`Place failed: Item ${selectedHotbarItem.itemId} (${itemInfo.name}) is not a placeable block type.`);
+                 }
+             } else {
+                  // console.log("Place failed: Target location is not air.");
+             }
+        }
+
+
+        function getRandomCentralBlock() {
+            // Find the current stage based on block breaks
+            const currentStage = BLOCK_GENERATION_STAGES.slice().reverse().find(stage => blockBreaks >= stage.breaksNeeded);
+            if (!currentStage) return 'dirt'; // Fallback if stages are misconfigured
+
+            const possibleBlocks = currentStage.possible; // Get block probabilities for this stage
+            const rand = Math.random(); // Get random number 0-1
+            let cumulativeProbability = 0;
+
+            // Iterate through possible blocks and select one based on probability
+            for (const blockId in possibleBlocks) {
+                cumulativeProbability += possibleBlocks[blockId];
+                if (rand <= cumulativeProbability) {
+                    return blockId; // Return the chosen block ID
+                }
+            }
+            return 'dirt'; // Fallback if probabilities don't sum to 1 or other issues
+        }
+
+        function updateCurrentStage() {
+            // Find the highest stage the player has reached based on breaks
+            const currentStage = BLOCK_GENERATION_STAGES.slice().reverse().find(stage => blockBreaks >= stage.breaksNeeded);
+            currentStageLabel = currentStage ? currentStage.label : "Unknown"; // Update the stage label for UI
+        }
+
+        function isWithinReach(targetGridX, targetGridY) {
+             // Calculate player's center point
+             const playerCenterX = player.x;
+             const playerCenterY = player.y + (PLAYER_HEIGHT_BLOCKS * BLOCK_SIZE) / 2;
+             // Calculate target block's center point
+             const targetCenterX = (targetGridX + 0.5) * BLOCK_SIZE;
+             const targetCenterY = (targetGridY + 0.5) * BLOCK_SIZE;
+
+             // Calculate distance using Pythagorean theorem
+             const dx = targetCenterX - playerCenterX;
+             const dy = targetCenterY - playerCenterY;
+             const distance = Math.sqrt(dx*dx + dy*dy);
+
+             // Compare distance to reach distance (converted to pixels)
+             return distance <= REACH_DISTANCE * BLOCK_SIZE;
+        }
+
+        function hasAdjacentBlock(gridX, gridY) {
+             // Define relative coordinates of adjacent blocks (up, down, left, right)
+             const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+             // Check if any adjacent position contains a non-air block
+             return directions.some(([dx, dy]) => {
+                 const checkX = gridX + dx;
+                 const checkY = gridY + dy;
+                 // Ensure checked coordinates are within world bounds
+                 return checkX >= 0 && checkX < WORLD_WIDTH &&
+                        checkY >= 0 && checkY < WORLD_HEIGHT &&
+                        world[checkY]?.[checkX] !== 'air'; // Check if block exists and is not air
+             });
+        }
+
+        function addOrUpdateInventory(itemId, quantity) {
+             if (!ITEMS[itemId]) {
+                 console.warn(`Attempted to add unknown item ID to inventory: ${itemId}`);
+                 return;
+             }
+             // Add quantity to existing count, or initialize if item is new
+             inventory[itemId] = (inventory[itemId] || 0) + quantity;
+             // If quantity drops to 0 or below, remove the item entry
+             if (inventory[itemId] <= 0) {
+                 delete inventory[itemId];
+             }
+        }
+
+        // --- Input Handling ---
+        window.addEventListener('keydown', (e) => {
+            const keyLower = e.key.toLowerCase();
+            keys[keyLower] = true; // Mark key as pressed
+
+            // Prevent default browser actions for game controls if menus are closed
+            if (!inventoryOpen && !craftingOpen) {
+                if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(keyLower)) {
+                    e.preventDefault();
+                }
+                // Hotbar selection keys (1-9)
+                const keyNum = parseInt(e.key);
+                if (!isNaN(keyNum) && keyNum >= 1 && keyNum <= HOTBAR_SLOTS) {
+                    setActiveHotbarSlot(keyNum - 1); // Adjust to 0-based index
+                }
+            }
+
+            // Menu toggle keys
+            if (keyLower === 'i') toggleInventory();
+            else if (keyLower === 'c') toggleCrafting();
+            else if (keyLower === 'escape') { // Escape closes any open menu
+                inventoryOpen = false;
+                craftingOpen = false;
+                inventoryMenu.style.display = 'none';
+                craftingMenu.style.display = 'none';
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false; // Mark key as released
+        });
+
+        // Interaction listeners on the canvas
+        canvas.addEventListener('click', handleInteraction); // Left click
+        canvas.addEventListener('contextmenu', handleInteraction); // Right click
+
+        // --- UI Button Listeners ---
+        restartButton.addEventListener('click', () => {
+            if (confirm("Are you sure you want to restart? All progress (including save) will be lost.")) {
+                gameLoaded = false; // Ensure reset doesn't think it loaded a game
+                resetGame();
+            }
+        });
+        inventoryButton.addEventListener('click', toggleInventory);
+        craftingButton.addEventListener('click', toggleCrafting);
+        saveButton.addEventListener('click', () => {
+            saveGame();
+            alert("Game Saved!"); // Simple feedback
+        });
+
+        // --- Saving and Loading ---
+        const SAVE_KEY = 'oneBlock2DSaveData_v3'; // Use a versioned key
+
+        function saveGame() {
+             try {
+                 const saveData = {
+                     world: world,
+                     player: player,
+                     inventory: inventory,
+                     hotbar: hotbar,
+                     activeHotbarSlot: activeHotbarSlot,
+                     startTime: startTime,
+                     dayCount: dayCount, // Save derived state too for consistency
+                     blockBreaks: blockBreaks,
+                     lastCentralBlockType: lastCentralBlockType,
+                     version: 3 // Include version number in save data
+                 };
+                 localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
+                 console.log("Game saved to localStorage.");
+             } catch (error) {
+                 console.error("Error saving game:", error);
+                 // Maybe inform the user that saving failed
+             }
+        }
+
+        function loadGame() {
+             try {
+                 const savedString = localStorage.getItem(SAVE_KEY);
+                 if (!savedString) return false; // No save data found
+
+                 const savedData = JSON.parse(savedString);
+
+                 // Basic validation and version check
+                 if (savedData.version !== 3) {
+                     console.warn(`Save data version mismatch (Found: ${savedData.version}, Expected: 3). Starting new game.`);
+                     clearSaveGame(); // Clear incompatible save
+                     return false;
+                 }
+
+                 // Restore game state variables
+                 world = savedData.world;
+                 player = savedData.player;
+                 inventory = savedData.inventory;
+                 hotbar = savedData.hotbar;
+                 activeHotbarSlot = savedData.activeHotbarSlot;
+                 startTime = savedData.startTime;
+                 dayCount = savedData.dayCount; // Load saved day count
+                 blockBreaks = savedData.blockBreaks;
+                 lastCentralBlockType = savedData.lastCentralBlockType;
+
+                 // Additional validation/sanity checks
+                 if (!Array.isArray(world) || world.length !== WORLD_HEIGHT || !Array.isArray(world[0]) || world[0].length !== WORLD_WIDTH) {
+                    console.warn("Loaded world data has incorrect dimensions, resetting.");
+                    return false; // Force reset
+                 }
+                 if (!Array.isArray(hotbar) || hotbar.length !== HOTBAR_SLOTS) {
+                     console.warn("Loaded hotbar invalid, resetting.");
+                     hotbar = Array(HOTBAR_SLOTS).fill(null);
+                     activeHotbarSlot = 0;
+                 }
+                 // Ensure hotbar items are somewhat valid (simple check)
+                 hotbar = hotbar.map(slot => (slot && ITEMS[slot.itemId]) ? slot : null);
+
+                 if (!player || typeof player.x !== 'number' || typeof player.y !== 'number') {
+                     console.warn("Loaded player data invalid, resetting player position.");
+                     player = { x: (CENTRAL_X + 0.5) * BLOCK_SIZE, y: (CENTRAL_Y - PLAYER_HEIGHT_BLOCKS) * BLOCK_SIZE, vx: 0, vy: 0, onGround: false };
+                 }
+                 // Ensure inventory items are valid
+                 for(const itemId in inventory){
+                     if(!ITEMS[itemId]){
+                         console.warn(`Removing unknown item ${itemId} from loaded inventory.`);
+                         delete inventory[itemId];
+                     }
+                 }
+
+
+                 // updateCurrentStage(); // Called in initializeGame
+                 // initializeSky(); // Called in initializeGame
+                 console.log("Save data loaded successfully.");
+                 return true; // Loading successful
+             } catch (error) {
+                 console.error("Error loading game:", error);
+                 clearSaveGame(); // Clear corrupted save data
+                 return false; // Loading failed
+             }
+        }
+
+        function clearSaveGame() {
+            localStorage.removeItem(SAVE_KEY);
+            console.log("Save data cleared from localStorage.");
+        }
+
+        // --- Start the Game ---
+        initializeGame();
+
+    </script>
+</body>
+</html>
